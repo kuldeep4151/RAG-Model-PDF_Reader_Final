@@ -16,3 +16,5 @@ def build_vector_store(docs):
     )
 
     return FAISS.from_documents(chunks, embeddings)
+
+

@@ -8,95 +8,123 @@ from loaders.pdf_loader import load_pdf
 from vectorstore.store import build_vector_store
 from chains.memory_chain import get_memory_module
 from chains.rag_chain import build_rag_chain
-from utils.memory_utils import needs_raw_history
+
+from utils.memory_utils import needs_raw_history, is_summary_question
 from chains.summary_memory import get_summary, update_summary
+from utils.context_compression import compress_docs
+from vectorstore.store import build_vector_store
 
+
+
+
+# ---------------- CONFIG ----------------
 MAX_CONTEXT_CHARS = 1000
+SCORE_THRESHOLD = 0.75
 
 
-def build_context(docs):
-    context = ""
-    for d in docs:
-        if len(context) + len(d.page_content) > MAX_CONTEXT_CHARS:
-            break
-        context += d.page_content + "\n"
-    return context
+# ---------------- HELPERS ----------------
+def get_dynamic_k(question: str) -> int:
+    q = question.lower()
+
+    if any(word in q for word in ["list", "all", "models", "names", "mentioned"]):
+        return 10  # high recall
+    elif any(word in q for word in ["is", "does", "are", "was"]):
+        return 4   # precise
+    else:
+        return 6   # default
 
 
+# ---------------- MAIN ----------------
 def main():
-    pdf_path = input("Enter the full path of your PDF file:\n> ")
+    pdf_path = input("Enter the full path of your PDF file:\n> ").strip()
 
     if not os.path.isfile(pdf_path):
         print("Error: File not found.")
         return
 
-    print("Loading PDF...")
+    print("\nLoading PDF...")
     docs = load_pdf(pdf_path)
 
-    print("Building Vector store...")
+    print("Building vector store...")
     vectorstore = build_vector_store(docs)
 
-    print("Loading memory...")
+    print("Initializing memory...")
     memory = get_memory_module()
 
-    print("Building RAG Chain...")
+    print("Building RAG chain...")
     rag_chain = build_rag_chain(vectorstore)
 
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 8})
-
-    print("Chatbot is ready! Type 'exit' to quit.")
+    print("\nChatbot is ready! Type 'exit' to quit.\n")
 
     while True:
-        user_input = input("\nYou: ")
+        user_input = input("You: ").strip()
+
         if user_input.lower() == "exit":
+            print("Goodbye!")
             break
 
-        # -------------------------------
-        # 1️⃣ LOAD HISTORY
-        # -------------------------------
+        # --------- LOAD MEMORY ---------
         history_msgs = memory.load_memory_variables({})["history"]
 
         raw_history = "\n".join(
-            f"{m.type}: {m.content}"
-            for m in history_msgs[-4:]  # last 2 turns only
+            f"{msg.type}: {msg.content}"
+            for msg in history_msgs[-4:]
         )
 
         summary_history = get_summary()
 
-        # -------------------------------
-        # 2️⃣ HYBRID DECISION
-        # -------------------------------
-        if needs_raw_history(user_input):
-            history_text = raw_history
+        history_text = (
+            raw_history if needs_raw_history(user_input)
+            else summary_history
+        )
+
+        # --------- ROUTED RETRIEVAL ---------
+        if is_summary_question(user_input):
+            # VERY small context, no history
+            docs = vectorstore.similarity_search(user_input, k=2)
+            context = docs[0].page_content[:600]
+            history_text = ""
+
         else:
-            history_text = summary_history
+            k = get_dynamic_k(user_input)
 
-        # -------------------------------
-        # 3️⃣ RETRIEVAL (NO HISTORY HERE)
-        # -------------------------------
-        retrieved_docs = retriever.invoke(user_input)
-        context = build_context(retrieved_docs)
+            docs_with_scores = vectorstore.similarity_search_with_score(
+                user_input,
+                k=k
+            )
 
-        # -------------------------------
-        # 4️⃣ LLM CALL
-        # -------------------------------
+            context, _ = compress_docs(
+                docs_with_scores,
+                max_chars=MAX_CONTEXT_CHARS,
+                score_threshold=SCORE_THRESHOLD
+            )
+
+        # --------- DEBUG (optional) ---------
+        # print(f"[DEBUG] Context chars: {len(context)} | k={k if not is_summary_question(user_input) else 2}")
+
+        # --------- LLM CALL ---------
         response = rag_chain.invoke({
             "context": context,
-            "question": f"{history_text}\n\nUser: {user_input}".strip()
+            "history": history_text,
+            "question": user_input
         })
 
-        print("\nBot:", response)
+        print("\nBot:", response, "\n")
 
-        # -------------------------------
-        # 5️⃣ SAVE + UPDATE SUMMARY
-        # -------------------------------
+        # --------- SAVE MEMORY ---------
         memory.save_context(
             {"input": user_input},
             {"output": response}
         )
 
-        update_summary(memory.load_memory_variables({})["history"])
+        update_summary(
+            memory.load_memory_variables({})["history"]
+        )
 
 
+# ---------------- ENTRY ----------------
 if __name__ == "__main__":
     main()
+
+
+#  /Users/kuldeeppatel/Documents/LangChain/PDF_Reader/data/AI_Module.pdf
