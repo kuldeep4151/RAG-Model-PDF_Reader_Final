@@ -1,17 +1,24 @@
-TRIGGERS = [
-    "as mentioned",
-    "earlier",
-    "before",
-    "you said",
-    "based on",
-    "continue",
-    "why",
-    "explain in detail",
-    "then"
-]
-
 def needs_raw_history(user_input: str) -> bool:
-    return any(trigger in user_input.lower() for trigger in TRIGGERS)
+    q = user_input.lower()
+
+    triggers = [
+        "as mentioned",
+        "as discussed",
+        "earlier",
+        "before",
+        "previous",
+        "that",
+        "those",
+        "them",
+        "this model",
+        "these models",
+        "from above",
+        "you said",
+        "we discussed"
+    ]
+
+    return any(t in q for t in triggers)
+
 
 
 def is_entity_query(query: str) -> bool:

@@ -1,27 +1,33 @@
-def compress_docs(
-    docs_with_scores,
-    max_chars=1000,
-    score_threshold=0.75
-):
+def compress_docs(docs_with_scores, query: str, max_chars=700):
     """
-    Selectively builds context from retrieved docs.
-    Priority:
-    1. High similarity
-    2. Shorter chunks first
-    3. Hard char limit
+    Score-aware, rank-based compression.
+    Works for:
+    - QA
+    - Enumeration
+    - Conceptual questions
     """
-
     context = ""
-    selected_docs = []
+    selected = []
 
-    for doc, score in docs_with_scores:
-        if score > score_threshold:
-            continue
+    q_tokens = set(
+        t for t in query.lower().split()
+        if len(t) > 2
+    )
 
+    for idx, (doc, score) in enumerate(docs_with_scores):
+
+        # Keep top-ranked chunks first (FAISS already sorted)
         if len(context) + len(doc.page_content) > max_chars:
             break
 
-        context += doc.page_content + "\n"
-        selected_docs.append(doc)
+        text = doc.page_content.lower()
+        lexical_overlap = any(t in text for t in q_tokens)
 
-    return context, selected_docs
+        # Selection logic:
+        # 1. Always keep first chunk
+        # 2. Keep chunks with lexical overlap
+        if idx == 0 or lexical_overlap:
+            context += doc.page_content + "\n"
+            selected.append(doc)
+
+    return context.strip(), selected

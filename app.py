@@ -10,29 +10,14 @@ from chains.memory_chain import get_memory_module
 from chains.rag_chain import build_rag_chain
 
 from utils.memory_utils import needs_raw_history, is_summary_question
-from chains.summary_memory import get_summary, update_summary
-from utils.context_compression import compress_docs
+from chains.summary_memory import update_summary
 from vectorstore.store import build_vector_store
+from chains.hierarchical_summary import chunk_summarizer, merge_summarizer
 
 
 
-
-# ---------------- CONFIG ----------------
+#  CONFIG 
 MAX_CONTEXT_CHARS = 1000
-SCORE_THRESHOLD = 0.75
-
-
-# ---------------- HELPERS ----------------
-def get_dynamic_k(question: str) -> int:
-    q = question.lower()
-
-    if any(word in q for word in ["list", "all", "models", "names", "mentioned"]):
-        return 10  # high recall
-    elif any(word in q for word in ["is", "does", "are", "was"]):
-        return 4   # precise
-    else:
-        return 6   # default
-
 
 # ---------------- MAIN ----------------
 def main():
@@ -68,46 +53,50 @@ def main():
 
         raw_history = "\n".join(
             f"{msg.type}: {msg.content}"
-            for msg in history_msgs[-4:]
+            for msg in history_msgs[-4:]   # last 2 turns only
         )
 
-        summary_history = get_summary()
+        # DEFAULT: no history
+        history_text = ""
 
-        history_text = (
-            raw_history if needs_raw_history(user_input)
-            else summary_history
-        )
+        # ONLY include history if explicitly required
+        if needs_raw_history(user_input):
+            history_text = raw_history
 
-        # --------- ROUTED RETRIEVAL ---------
+        #--------Tried selective_summarize technique ----
+        
         if is_summary_question(user_input):
-            # VERY small context, no history
-            docs = vectorstore.similarity_search(user_input, k=2)
-            context = docs[0].page_content[:600]
-            history_text = ""
+            print("\n[INFO] Running selective summarization...\n")
 
-        else:
-            k = get_dynamic_k(user_input)
-
-            docs_with_scores = vectorstore.similarity_search_with_score(
-                user_input,
+            # Retrieve top-k important chunks
+            k = 20
+            docs = vectorstore.similarity_search(
+                "summary of the paper",
                 k=k
             )
 
-            context, _ = compress_docs(
-                docs_with_scores,
-                max_chars=MAX_CONTEXT_CHARS,
-                score_threshold=SCORE_THRESHOLD
-            )
+            # Summarize EACH chunk (MAP step)
+            partial_summaries = []
+            for doc in docs:
+                summary = chunk_summarizer.invoke({
+                    "text": doc.page_content[:800]   # hard cap
+                })
+                partial_summaries.append(summary)
 
-        # --------- DEBUG (optional) ---------
-        # print(f"[DEBUG] Context chars: {len(context)} | k={k if not is_summary_question(user_input) else 2}")
+            # Merge summaries (REDUCE step)
+            final_summary = merge_summarizer.invoke({
+                "summaries": "\n".join(partial_summaries)
+            })
 
-        # --------- LLM CALL ---------
-        response = rag_chain.invoke({
-            "context": context,
-            "history": history_text,
-            "question": user_input
-        })
+            print("\nBot:", final_summary)
+            continue
+        
+        else:
+            response = rag_chain.invoke(
+            {
+                "question": user_input,
+                "history": history_text
+            })
 
         print("\nBot:", response, "\n")
 
