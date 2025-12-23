@@ -1,40 +1,13 @@
-# utils/retrieval_utils.py
+def retrieve_relevant_docs(vectorstore, query, k=15, threshold=None):
+    results = vectorstore.similarity_search_with_score(query, k=k)
 
-def get_dynamic_k(question: str) -> int:
-    q = question.lower().strip()
+    docs = []
+    for doc, score in results:
+        if threshold is None:
+            docs.append(doc)
+        else:
+            # FAISS-style: lower is better
+            if score <= threshold:
+                docs.append(doc)
 
-    # 1. Precise yes/no or fact lookup
-    if q.startswith((
-        "is ", "are ", "was ", "were ",
-        "does ", "do ", "did ",
-        "has ", "have "
-    )):
-        return 10
-
-    # 2. Enumerative / listing intent
-    if any(p in q for p in [
-        "list all",
-        "list the",
-        "enumerate",
-        "all the",
-        "names of",
-        "which models",
-        "which llms",
-        "what models"
-    ]):
-        return 10
-
-    # 3. Conceptual / descriptive
-    if any(p in q for p in [
-        "what is",
-        "what are",
-        "explain",
-        "describe",
-        "purpose",
-        "how does",
-        "why does"
-    ]):
-        return 9
-
-    # 4. Safe default
-    return 10
+    return docs

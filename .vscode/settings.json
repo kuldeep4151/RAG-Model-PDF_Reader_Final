@@ -1,0 +1,11 @@
+{
+    "cSpell.words": [
+        "dotenv",
+        "FAISS",
+        "GROQ",
+        "huggingface",
+        "intfloat",
+        "vectorstore",
+        "vectorstores"
+    ]
+}

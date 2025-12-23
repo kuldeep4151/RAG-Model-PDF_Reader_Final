@@ -1,33 +1,18 @@
-def compress_docs(docs_with_scores, query: str, max_chars=700):
-    """
-    Score-aware, rank-based compression.
-    Works for:
-    - QA
-    - Enumeration
-    - Conceptual questions
-    """
-    context = ""
+def compress_docs(docs, query=None, max_chars=4000, mode="qa"):
+    if mode == "qa":
+        # DO NOT compress for QA
+        text = "\n\n".join(doc.page_content for doc in docs)
+        return text[:max_chars], docs
+
+    # summary mode
     selected = []
+    total = 0
 
-    q_tokens = set(
-        t for t in query.lower().split()
-        if len(t) > 2
-    )
-
-    for idx, (doc, score) in enumerate(docs_with_scores):
-
-        # Keep top-ranked chunks first (FAISS already sorted)
-        if len(context) + len(doc.page_content) > max_chars:
+    for doc in docs:
+        chunk = doc.page_content
+        if total + len(chunk) > max_chars:
             break
+        selected.append(doc)
+        total += len(chunk)
 
-        text = doc.page_content.lower()
-        lexical_overlap = any(t in text for t in q_tokens)
-
-        # Selection logic:
-        # 1. Always keep first chunk
-        # 2. Keep chunks with lexical overlap
-        if idx == 0 or lexical_overlap:
-            context += doc.page_content + "\n"
-            selected.append(doc)
-
-    return context.strip(), selected
+    return "\n\n".join(d.page_content for d in selected), selected
