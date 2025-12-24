@@ -1,34 +1,27 @@
 import re
 
-
-def boolean_presence_search(docs, question: str) -> bool:
-    """
-    STRICT boolean presence:
-    - Extracts the entity being asked about
-    - Checks exact / near-exact match
-    """
-
+def boolean_presence_search(docs, question: str):
     q = question.lower().strip()
 
-    # Extract phrase after "is / are / does / do"
     match = re.match(
-    r"\b(is|are|does|do|was|were)\s+([a-zA-Z][a-zA-Z\- ]{1,50}?)\s+(mentioned|present|used|in)\b",
-    q
+        r"\b(is|are|does|do|was|were)\s+"
+        r"([a-zA-Z][a-zA-Z0-9\- ]{1,50}?)\s+"
+        r"(mentioned|present|used|in)\b",
+        q
     )
 
-
     if not match:
-        return False
+        return False, None
 
     entity = match.group(2).strip()
 
     if len(entity) < 3:
-        return False
+        return False, None
 
     entity = entity.lower()
 
     for doc in docs:
         if entity in doc.page_content.lower():
-            return True
+            return True, entity
 
-    return False
+    return False, entity

@@ -16,9 +16,7 @@ from utils.intent_router import route_intent, Intent
 
 from chains.hierarchical_summary import chunk_summarizer, merge_summarizer
 
-# -------------------------
 # Environment
-# -------------------------
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
@@ -31,9 +29,6 @@ def build_llm():
         temperature=0
     )
 
-# -------------------------
-# MAIN
-# -------------------------
 
 def main():
     pdf_path = input("Enter PDF file path or directory path:\n> ").strip()
@@ -62,7 +57,7 @@ def main():
             print("Goodbye!")
             break
 
-        # --------- LOAD MEMORY ---------
+        # LOAD MEMORY 
         history_msgs = memory.load_memory_variables({})["history"]
 
         raw_history = "\n".join(
@@ -103,14 +98,19 @@ def main():
         
         if intent == Intent.BOOLEAN_PRESENCE:
 
-            found = boolean_presence_search(docs, user_input)
+            found, entity = boolean_presence_search(docs, user_input)
+
+            if not entity:
+                print("\nBot: I could not identify what to check in the document.\n")
+                continue
 
             if found:
-                print("\nBot: Yes — the document contains relevant mentions.\n")
+                print(f"\nBot: Yes — the document contains '{entity}'.\n")
             else:
-                print("\nBot: No — the document does not mention this.\n")
+                print(f"\nBot: No — the document does not contain '{entity}'.\n")
 
             continue
+
         
         response = run_rag(
             vectorstore=vectorstore,
