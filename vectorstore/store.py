@@ -1,20 +1,41 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
+import faiss
+import numpy as np
+from utils.embeddings import embed_document
+
+
+class ExplicitVectorStore:
+    def __init__(self):
+        self.index = None
+        self.docs = []   # chunked docs aligned with vectors
+
+    def add_documents(self, docs):
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=800,
+            chunk_overlap=150
+        )
+
+        chunked_docs = splitter.split_documents(docs)
+
+        vectors = []
+        for doc in chunked_docs:
+            v = embed_document(doc.page_content)
+            vectors.append(v)
+            self.docs.append(doc)
+
+        dim = len(vectors[0])
+        self.index = faiss.IndexFlatL2(dim)
+        self.index.add(np.array(vectors).astype("float32"))
+
+    def similarity_search(self, query_vector, k=10):
+        D, I = self.index.search(
+            np.array([query_vector]).astype("float32"),
+            k
+        )
+        return [self.docs[i] for i in I[0]]
+
 
 def build_vector_store(docs):
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=900,
-        chunk_overlap=190
-    )
-
-    chunks = splitter.split_documents(docs)
-    print("Chunks created:", len(chunks))
-
-    embeddings = HuggingFaceEmbeddings(
-        model_name="intfloat/e5-base-v2"
-    )
-
-    return FAISS.from_documents(chunks, embeddings)
-
-
+    store = ExplicitVectorStore()
+    store.add_documents(docs)
+    return store

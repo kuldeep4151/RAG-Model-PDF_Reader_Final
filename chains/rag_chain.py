@@ -1,11 +1,6 @@
-from langchain_groq import ChatGroq
 from langchain_core.output_parsers import StrOutputParser
 from chains.prompts import RAG_PROMPT
-import os
-from utils.memory_utils import is_summary_question
-from chains.question_rewriter import rewrite_if_needed
-from utils.retrieval_utils import retrieve_relevant_docs
-from utils.context_compression import compress_docs
+from utils.embeddings import embed_query
 
 def build_rag_chain(llm):
     """
@@ -40,8 +35,9 @@ def run_rag(vectorstore, llm, question, history):
     
     if not context.strip():
         # Compression removed everything → fallback to raw chunks
+        query_vector = embed_query(rewritten)
         fallback_docs = vectorstore.similarity_search(
-            rewritten,
+            query_vector,
             k=5
         )
 

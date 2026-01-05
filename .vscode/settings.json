@@ -5,6 +5,7 @@
         "GROQ",
         "huggingface",
         "intfloat",
+        "kuldeeppatel",
         "vectorstore",
         "vectorstores"
     ]

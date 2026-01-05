@@ -13,15 +13,12 @@ def boolean_presence_search(docs, question: str):
     if not match:
         return False, None
 
-    entity = match.group(2).strip()
+    entity = match.group(2).strip().lower()
 
     if len(entity) < 3:
         return False, None
 
-    entity = entity.lower()
+    # Pre-build a single lowercase corpus (much faster)
+    full_text = "\n".join(d.page_content for d in docs).lower()
 
-    for doc in docs:
-        if entity in doc.page_content.lower():
-            return True, entity
-
-    return False, entity
+    return (entity in full_text), entity

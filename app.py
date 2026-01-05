@@ -13,9 +13,9 @@ from chains.memory_chain import get_memory_module
 from chains.rag_chain import run_rag
 from utils.boolean_search import boolean_presence_search
 from utils.intent_router import route_intent, Intent
-
+from utils.embeddings import embed_query
 from chains.hierarchical_summary import chunk_summarizer, merge_summarizer
-
+#from utils.table_normalizer import normalize_tables
 # Environment
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -39,6 +39,8 @@ def main():
 
     print("\nLoading PDF...")
     docs = load_pdf(pdf_path)
+    #for d in docs:
+     #   d.page_content = normalize_tables(d.page_content)
 
     print("Building vector store...")
     vectorstore = build_vector_store(docs)
@@ -76,9 +78,10 @@ def main():
 
             summary_query = f"Summary focus: {user_input}"
             k = 20
-
+            query_vector = embed_query(summary_query)
+            
             summary_docs = vectorstore.similarity_search(
-                summary_query,
+                query_vector,
                 k=k
             )
 
