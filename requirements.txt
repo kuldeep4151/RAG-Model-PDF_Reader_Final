@@ -9,3 +9,5 @@ pypdf
 python-dotenv
 numpy
 groq
+langchain-groq
+pydantic
