@@ -72,7 +72,7 @@ def main():
             history_text = raw_history
 
         intent = route_intent(user_input)
-        # YOUR HYBRID SELECTIVE + MAP-REDUCE SUMMARY
+        # HYBRID SELECTIVE + MAP-REDUCE SUMMARY
         if intent == Intent.SUMMARY:
             print("\n[INFO] Running summarization Loop...\n")
 
